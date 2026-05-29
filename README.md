@@ -19,4 +19,9 @@ The way this will be achieved is through the following:
     - At the end of the build end up with a big project
     - TBD: The "final boss" project
 
+## The Basics
+
+The purpose of this section is to get familiar with Cargo and setting up a new
+prject in Rust, be it web, CLI, a library or anything else. [Read here the full
+documentation](./BASICS.md).
 
