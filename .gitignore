@@ -1,0 +1,26 @@
+# Rust build artifacts
+target/
+
+# Cargo temporary files
+Cargo.lock.orig
+*.rs.bk
+
+# Test and coverage output
+*.profraw
+*.profdata
+coverage/
+tarpaulin-report.html
+
+# Native build leftovers
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Editor and OS noise
+.DS_Store
+*.swp
+*.swo
+*~
