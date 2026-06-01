@@ -19,6 +19,11 @@ The way this will be achieved is through the following:
 - Ending with a bigger project that combines the learned concepts
 - TBD: The "final boss" project
 
+## Lessons learned
+
+During the labs (Exercism and LeetCode) there will be lessons learned that can
+be summed up in the final version of the app. Find them [here](./rust-labs/rust-challenges/README.md).
+
 ## The Basics
 
 The purpose of this section is to get familiar with Cargo and setting up a new

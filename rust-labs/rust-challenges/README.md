@@ -1,58 +1,39 @@
-## Reverse Strint
+# Lessons learned during the labs
 
-### Comments at code review
+## Reverse String
 
-Hello Andrei,
+### Lessons from the refactor
 
-Good to meet you here. Interesting solution! I have a couple of observations/suggestions, maybe you'll find them helpful.
+The first version worked, but it did more work than necessary: it built intermediate collections, checked for palindromes separately, and allocated more than once.
 
-First, for the potential reversal of letters (lines 8 to 14) you could use the (optimized) slice method slice.reverse:
+The refactor keeps the Unicode-aware behavior while making the flow smaller and cheaper:
+
+- Use `graphemes(true)` instead of raw `chars()` so composed characters and emoji stay intact.
+- Use `.rev()` directly because `Graphemes` implements `DoubleEndedIterator`.
+- Avoid collecting into `Vec<&str>` when the final result is a `String`.
+- Skip the palindrome check because reversing the iterator already covers all cases cleanly.
+- Preallocate with `String::with_capacity(input.len())` to reserve exactly enough bytes for the result.
+- Build the output with `fold` and `push_str`, resulting in one intentional allocation.
+
+Why `fold` instead of collecting into a vector first?
 
 ```rust
-if is_palindrome(&letters) { return word; }
-letters.reverse();
+let letters = input.graphemes(true).rev().collect::<Vec<&str>>();
 letters.concat()
 ```
-}
-Then: in the worst case you are allocating three times on the heap:
 
-word
-letters
-return String
-Imho, those are the parts that drive the performance of reverse, the rest is rather cheap. So I'd suggest to check if you could get rid of some of them. As a first step I'd suggest to drop word and only build it once you really need it, like:
+This works, but it creates an intermediate `Vec<&str>` and then creates the final `String`. That means extra allocation and an extra pass over the graphemes.
 
-pub fn reverse(input: &str) -> String {
-    if input.len() < 2 { return input.to_string(); }
-    let mut letters = input.graphemes(true).collect::<Vec<&str>>();
-    if is_palindrome(&letters) { return input.to_string(); }
-    ...
-(input.len() is exactly the same as word.len().) Then I'd like to point out that the iterator Graphemes has implemented the DoubleEndedIterator trait (see here). That means you can reverse the iterator with the .rev() adapter and therefore could just collect reversed into letters:
+Using `fold` writes each reversed grapheme directly into the final `String`:
 
-pub fn reverse(input: &str) -> String {
-    if input.len() < 2 { return input.to_string(); }
-    let letters = input.graphemes(true).rev().collect::<Vec<&str>>();
-    letters.concat()
-}
-This actually doesn't cost more than iterating the other way around, you can compare the implementations here and here. The palindrome check would now be moot. But at that point you could also just directly collect into a String:
+```rust
+input.graphemes(true).rev().fold(
+    String::with_capacity(input.len()),
+    |mut reversed, grapheme| {
+        reversed.push_str(grapheme);
+        reversed
+    },
+)
+```
 
-pub fn reverse(input: &str) -> String {
-    if input.len() < 2 { return input.to_string(); }
-    input.graphemes(true).rev().collect()
-}
-Or, I like that better, because .collect() isn't optimal w.r.t. avoiding reallocations:
-
-pub fn reverse(input: &str) -> String {
-    if input.len() < 2 { return input.to_string(); }
-    input.graphemes(true).rev().fold(
-        String::with_capacity(input.len()),
-        |mut reversed, grapheme| {
-            reversed.push_str(grapheme);
-            reversed
-        }
-    )
-}
-This way there's only one allocation, no growing pains, because the String is set up with String::with_capacity with the exact capacity needed.
-
-I hope that's helpful. Let me know if not or if you have follow-up questions!
-
-Cheers, Timus
+This avoids the temporary vector, avoids repeated string growth, and keeps the function focused on the result it actually needs to return.
