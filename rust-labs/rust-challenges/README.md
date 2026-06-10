@@ -63,72 +63,84 @@ Property 3 is the subtle, important one: order doesn't matter. That's exactly wh
 doesn't bother us — XOR-ing a pile of values gives the same result no matter what order they come
 in.
 
+**Why it solves the problem**
+
+Your t is every char of s, plus one extra. If you XOR everything together (all of s and all of t),
+every char that appears in both lists shows up an even number of times and cancels itself out via
+property 1. The one extra char appears an odd number of times — it's the lone survivor. Property 2
+mops up the zeros.
+
+Concretely, with s = "abc", t = "cabd":
+
 ```text
-TO REFINE
-
-Why it solves your problem
-
-  Your t is every char of s, plus one extra. If you XOR everything together (all of s and all of t),
-  every char that appears in both lists shows up an even number of times and cancels itself out via
-  property 1. The one extra char appears an odd number of times — it's the lone survivor. Property 2
-  mops up the zeros.
-
-  Concretely, with s = "abc", t = "cabd":
-
-  a ^ b ^ c   ^   c ^ a ^ b ^ d
-  = (a^a) ^ (b^b) ^ (c^c) ^ d
-  = 0 ^ 0 ^ 0 ^ d
-  = d
-
-  The shuffle is irrelevant — that's the commutativity paying off.
-
-  XOR in Rust
-
-  The operator is ^, and there's a compound-assign form ^=:
-
-  let x = 5 ^ 3;        // 6
-  let mut acc = 0u8;
-  acc ^= b'a';          // acc = acc ^ b'a'
-
-  A few Rust-specific things that matter for this problem:
-
-  1. Chars vs bytes. Rust's char is a 4-byte Unicode scalar and does not implement ^ directly. You XOR
-  integers. Since these problems are ASCII (lowercase English letters), iterate over .bytes() to get
-  u8 values, XOR those, then convert the result back:
-
-  let b: u8 = b'a';          // byte literal, type u8
-  let c: char = b as char;   // u8 -> char is a safe cast
-
-  (If you tried to XOR char values you'd get a compile error — a good one to hit on purpose once so
-  you recognize it.)
-
-  2. fold is the idiomatic accumulator. Coming from Java you might reach for a for loop with a mut
-  variable. That's fine and clear. But the Rust-idiomatic way to "reduce a sequence to one value" is
-  fold:
-
-  // chain both strings into one stream of bytes, XOR them all
-  let result = s.bytes().chain(t.bytes()).fold(0u8, |acc, byte| acc ^ byte);
-
-  - chain glues the two byte-iterators into one — no allocation, no temporary string.
-  - fold(0u8, ...) starts the accumulator at 0 (our identity element — property 2!) and folds each
-  byte in with ^.
-  - This is lazy and single-pass: O(n) time, O(1) space.
-
-  3. Watch the integer type. 0u8 pins the accumulator to u8 so it matches the bytes. XOR never
-  overflows (the result of u8 ^ u8 always fits in u8), so unlike the sum trick you don't have to worry
-  about wraparound here. That's a quiet advantage of XOR over the sum approach.
-
-  Where else you'll see this
-
-  - "Single Number" (LeetCode 136): every element appears twice except one — same exact survivor
-  logic.
-  - Swap without a temp: a ^= b; b ^= a; a ^= b; (cute, rarely worth it in real code).
-  - Finding a missing number in 0..n.
-  - Toggling a flag/bit: flags ^= MASK flips just the masked bits.
-
-  ---
-  Now go write it. I'd suggest you try the fold version, but if it feels alien, write the plain for
-  loop first — both are legitimate Rust, and I'd rather you understand it than copy an idiom. Paste
-  what you come up with and I'll check it for idiomaticity and any type gotchas.
-
+a ^ b ^ c   ^   c ^ a ^ b ^ d
+    = (a^a) ^ (b^b) ^ (c^c) ^ d
+    = 0 ^ 0 ^ 0 ^ d
+    = d
 ```
+
+**XOR in Rust**
+
+The operator is ^, and there's a compound-assign form ^=:
+
+```rust
+let x = 5 ^ 3;        // 6
+let mut acc = 0u8;
+acc ^= b'a';          // acc = acc ^ b'a'
+```
+
+**A few Rust-specific things that matter for this problem:**
+
+1. Chars vs bytes. Rust's char is a 4-byte Unicode scalar and does not implement ^ directly. You XOR
+integers. Since these problems are ASCII (lowercase English letters), iterate over .bytes() to get
+u8 values, XOR those, then convert the result back:
+
+2. fold is the idiomatic accumulator. Coming from Java you might reach for a for loop with a mut
+variable. That's fine and clear. But the Rust-idiomatic way to "reduce a sequence to one value" is
+fold:
+
+```rust
+// chain both strings into one stream of bytes, XOR them all
+let result = s.bytes().chain(t.bytes()).fold(0u8, |acc, byte| acc ^ byte);
+```
+
+2.1. s.bytes() — iterate over the string as raw bytes
+
+s.bytes() gives you an iterator of u8 values, one per byte of the string. Since LeetCode guarantees the input is lowercase ASCII letters, each byte is one character ('a' = 97, 'b' = 98, etc.). This is cheaper than chars(), which yields 4-byte char values and has to do UTF-8 decoding.
+
+For s = "abc", s.bytes() yields: 97, 98, 99.
+
+2.2. .chain(t.bytes()) — glue the two iterators together
+
+chain produces a single iterator that yields everything from the first iterator, then everything from the second. No allocation, no copying — it just switches sources when the first runs dry.
+
+For s = "abc", t = "abcd":
+
+97, 98, 99, 97, 98, 99, 100
+└── s ────┘ └────── t ─────┘
+
+This works because for this problem we don't care where each character came from — only how many times each value appears in total.
+
+3.2. .fold(0u8, |acc, byte| acc ^ byte) — reduce everything to one value
+
+fold walks the iterator, carrying an accumulator:
+
+- 0u8 is the starting value (typed as u8 so the compiler knows the accumulator type).
+- For each byte, it computes acc ^ byte and that becomes the new acc.
+- When the iterator is exhausted, fold returns the final acc.
+
+So it's literally: ((((((0 ^ 97) ^ 98) ^ 99) ^ 97) ^ 98) ^ 99) ^ 100.
+
+3. Watch the integer type. 0u8 pins the accumulator to u8 so it matches the bytes. XOR never
+overflows (the result of u8 ^ u8 always fits in u8), so unlike the sum trick you don't have to worry
+about wraparound here. That's a quiet advantage of XOR over the sum approach.
+
+**Where else you'll see this**
+
+- "Single Number" (LeetCode 136): every element appears twice except one — same exact survivor
+  logic.
+- Swap without a temp: a ^= b; b ^= a; a ^= b; (cute, rarely worth it in real code).
+- Finding a missing number in 0..n.
+- Toggling a flag/bit: flags ^= MASK flips just the masked bits.
+
+
