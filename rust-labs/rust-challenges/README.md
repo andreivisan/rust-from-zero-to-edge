@@ -258,5 +258,47 @@ let result = opt.map_or_else(|| compute_default(), |i| transform(i));
 
 So the rule of thumb: `map_or` for a cheap, already-computed default; `map_or_else` when the default itself needs lazy evaluation.
 
+## `str::find` — the production answer for LC28
 
+Everything above hand-rolls the search to learn the mechanics. In real code you'd write one line:
 
+```rust
+haystack.find(&needle).map(|i| i as i32).unwrap_or(-1)
+```
+
+**Why it compiles.** 
+
+`find` takes any `Pattern`. `&needle` is a `&String`, which implements `Pattern`,
+so this typechecks directly — no `.as_str()` needed. It returns `Option<usize>`, 
+the **byte index** of the first match (exactly Rust's notion of a string index).
+
+**It handles the empty needle for free.** 
+
+`"abc".find("")` returns `Some(0)`, which already matches the convention — so 
+unlike the `windows` version, you don't even need an `is_empty` guard. The whole 
+function collapses to that single expression.
+
+**Style note.** 
+
+`.map(|i| i as i32).unwrap_or(-1)` and `.map_or(-1, |i| i as i32)` are equivalent
+— `map_or` is just the two combinators fused into one. Use whichever reads better.
+
+**The twist: 
+
+`find` is the *fastest* of the three approaches.** The hand-rolled 
+`windows().position()` is naive O(n·m) worst case. `str::find` uses the 
+**Two-Way algorithm** (Crochemore–Perrin) internally — O(n+m) time, O(1) space, 
+the same complexity class as KMP.
+
+| Version | Allocation | Time | Use when |
+|---|---|---|---|
+| `Vec<char>` + windows | 2 heap allocs | O(n·m) | never (strictly worse) |
+| `as_bytes()` + windows | none | O(n·m) | the learning exercise |
+| `haystack.find(&needle)` | none | **O(n+m)** | real code |
+
+**So why did we hand-roll it?** Purely pedagogy. The point of the exercise was to
+learn `windows`, iterator composition, byte slices, lifetimes, and `Option` 
+combinators — `find` hands all of that to the standard library. On an 
+interview/LeetCode-style problem, calling the built-in substring search 
+sidesteps the very thing being tested. In production: reach for `find`. 
+To *understand* how `find` reaches O(n+m) by hand, that's the KMP detour.
