@@ -154,4 +154,109 @@ let v = [1, 2, 3,  4];
 // v.windows(3) yields: [1,2,3], [2,3,4]
 ```
 
+For a slice of length n and window k, you get exactly `n - k + 1` windows (or zero
+if `k > n`). Each yielded item is a `&[T]` - a borrow into the original slice, not
+a copy.
+
+The signature:
+
+```rust
+pub fn windows(&self, size: usize) -> Windows<'_, T>
+```
+
+**How it's actually built**
+
+```rust
+pub struct Windows<'a, T: 'a> {
+    v: &'a [T],          // the remaining slice still to scan
+    size: NonZeroUsize,  // window width
+}
+
+impl<'a, T> Iterator for Windows<'a, T> {
+    type Item = &'a [T];
+
+    fn next(&mut self) -> Option<&'a [T]> {
+        if self.size.get() > self.v.len() {
+            None
+        } else {
+            let ret = &self.v[..self.size.get()]; // front window
+            self.v = &self.v[1..];                // slide right by ONE
+            Some(ret)
+        }
+    }
+}
+```
+
+1. `&self.v[..size]` — take a view of the first size elements. This is the current window.
+2. `self.v = &self.v[1..]` — drop the first element from the working slice, so 
+next time the window starts one position later.
+
+That single `[1..]` re-slice is why windows overlap. Compare with its sibling 
+chunks, whose next does `self.v = &self.v[size..]` — advancing by the full width, 
+giving non-overlapping blocks. The only difference between "overlapping windows" 
+and "disjoint chunks" is whether you step by 1 or by `size`. That's a nice thing 
+to internalize.
+
+**Why it's efficient**
+
+*No allocation, ever.* This is the big one coming from Java. There, `haystack.substring(i, i + k)` allocates a new `String` and copies the chars — do that across the haystack and you've allocated O(n) strings totaling O(n·k) bytes. Rust's `&self.v[..size]` allocates nothing. A `&[T]` is a *fat pointer*: a pair of `(pointer, length)` that lives in a register or on the stack. Slicing just computes a new pointer and length — pointer arithmetic, no copy, no heap touch. Every window is two machine words.
+
+*O(1) per `next`.* Each step is a length comparison, a sub-slice, and a pointer bump. No work proportional to k happens just to *produce* a window. (The cost of *comparing* a window to the needle is separate — that's the `==` you write, a `memcmp` of up to k bytes.)
+
+*Lazy and short-circuiting.* Because it's an iterator, windows are produced on demand. When you chain `position(|w| w == needle)`, the moment a window matches, iteration stops — the remaining windows are never generated. You get early-exit for free, without writing a `break`.
+
+*Bounds-check elision.* The naive worry is "doesn't `&self.v[..size]` do a bounds check every iteration?" It does in the source, but the `if self.size.get() > self.v.len()` guard above it *proves* to LLVM that the index is in range, so the optimizer deletes the redundant check. The generated assembly is essentially what you'd hand-write with raw pointers. This guard-then-slice pattern is idiomatic precisely because it makes bounds checks provably dead.
+
+*The `NonZeroUsize` trick.* Notice `size` isn't a plain `usize`. Storing it as `NonZeroUsize` does two things: it bakes the "size must be > 0" invariant into the type (the panic happens once, up front, in `windows()` itself), and it lets the compiler use the niche — a `usize` that can never be 0 has a spare bit-pattern, so `Option<NonZeroUsize>` is the same size as `usize`.
+
+**Lifetimes — the detail that trips up Java folks**
+
+Look at the item type: `type Item = &'a [T]`. The `'a` is the lifetime of the *original slice*, not of the iterator. The windows borrow from the source data, so:
+
+- The original slice must stay alive and **unmodified** for as long as you hold the iterator (the borrow checker enforces this — you can't mutate the haystack while iterating windows over it).
+- A yielded `&[T]` can outlive a given `next()` call; it's tied to the source, not the iterator step.
+
+This is why there's no allocation to clean up and no use-after-advance hazard — the type system guarantees the backing data is pinned in place.
+
+**Bonus traits it implements**
+
+`Windows` is more than a forward iterator:
+
+- `ExactSizeIterator` → `.len()` is O(1) (`n - k + 1`), because it can compute the count without walking.
+- `DoubleEndedIterator` → you can `.rev()` or `.next_back()` to scan from the right. (For "first occurrence" you want left-to-right, but it's there.)
+
+**Two gotchas to design around**
+
+1. `windows(0)` panics. `NonZeroUsize::new(0)` fails and `windows()` does `.expect("window size must be non-zero")`. So before you ever call `windows(needle.len())`, handle the empty-needle case — which, conveniently, is also the case with the special return value. One guard kills two birds.
+
+2. What you compare. `windows` over `&[u8]` yields `&[u8]`. To test a window against the needle you compare `&[u8] == &[u8]`, which Rust does element-wise (a length check then `memcmp`). Mixing a `&[u8]` window with a `&str` won't compile — the compiler keeping you honest.
+
+3. The output type. `position` hands you `Option<usize>` (the window's *start index*, which is exactly the byte index of the match). The function wants `i32` with `-1` for "not found". Collapse "Some(i) → transform, None → default" with one combinator — see below.
+
+## Collapsing `Option` with `map_or`
+
+`map_or`.
+
+```rust
+let result = opt.map_or(default, |i| transform(i));
+```
+
+Its signature is `map_or<U>(self, default: U, f: F) -> U where F: FnOnce(T) -> U`. The argument order is the part worth burning into memory: **default comes first**, the closure second. So you read it as "map this, or use that" — slightly backwards from how the match reads top-to-bottom.
+
+```rust
+match opt {
+    Some(i) => transform(i),
+    None    => default,
+}
+```
+
+One gotcha tied to the ownership concepts you've been working through: `default` is evaluated eagerly, regardless of whether the `Option` is `Some` or `None`. If that default is expensive to produce, or has side effects, or moves a value you'd rather not give up when it isn't needed, reach for `map_or_else` instead, which takes a closure for the default too:
+
+```rust
+let result = opt.map_or_else(|| compute_default(), |i| transform(i));
+```
+
+So the rule of thumb: `map_or` for a cheap, already-computed default; `map_or_else` when the default itself needs lazy evaluation.
+
+
 
