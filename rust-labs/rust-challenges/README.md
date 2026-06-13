@@ -143,4 +143,15 @@ about wraparound here. That's a quiet advantage of XOR over the sum approach.
 - Finding a missing number in 0..n.
 - Toggling a flag/bit: flags ^= MASK flips just the masked bits.
 
+## `windows` in Rust for LC28 Find Index of the First Occurrence in a String
+
+`windows(k)` slides a fixed-width window of size k across a slice, yielding every contiguous sub-slice of that window, **overlapping**,
+advancing one element at a time.
+
+```rust
+let v = [1, 2, 3,  4];
+// v.windows(2) yields: [1,2], [2,3], [3,4]
+// v.windows(3) yields: [1,2,3], [2,3,4]
+```
+
 
