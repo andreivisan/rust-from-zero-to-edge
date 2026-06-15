@@ -302,3 +302,64 @@ combinators — `find` hands all of that to the standard library. On an
 interview/LeetCode-style problem, calling the built-in substring search 
 sidesteps the very thing being tested. In production: reach for `find`. 
 To *understand* how `find` reaches O(n+m) by hand, that's the KMP detour.
+
+## Counting (LC242 - Valid Anagram)
+
+**Why XOR does *not* work here.**
+
+It's tempting to reuse the XOR trick from LC389, but it gives wrong answers. XOR detects *parity* — whether each value appears an odd or even number of times. An anagram check needs *equal counts*, which is a strictly stronger condition. XOR throws the counts away, so any input where every letter appears an even number of times combined fools it:
+
+```text
+s = "aabb", t = "ccdd"        // NOT anagrams
+a^a ^ b^b ^ c^c ^ d^d = 0     // XOR says "equal" — wrong
+```
+
+XOR worked for LC389 only because the problem *guaranteed* exactly one extra char, forcing everything else to pair up and cancel. Anagram has no such guarantee. XOR is a "find the lone odd-one-out" tool, not a "compare two multisets" tool. The right tool is **counting**.
+
+**`bytes()` vs `as_bytes()` — iterator vs slice.**
+
+- `s.bytes()` returns a `Bytes` *iterator* — lazy, forward-only, no `Index`, so `sb[i]` won't compile (*"cannot index into a value of type `Bytes`"*). An iterator only knows how to hand you the *next* item; there's no "position i" in memory to jump to. (It does have `.len()`, but only because it's an `ExactSizeIterator` — that part is a coincidence, not random access.)
+- `s.as_bytes()` returns `&[u8]` — a *slice* backed by contiguous memory. It implements `Index<usize>`, giving O(1) random access, so `sb[i]` works.
+
+**Mapping a letter to an array index** (the Java `c - 'a'` trick):
+
+```rust
+let idx = (b - b'a') as usize;   // b: u8, from as_bytes()
+```
+
+- `b'a'` is a **byte literal** — a `u8` with value 97. That's the piece that maps to Java's `'a'` in index math. Contrast `'a'`, which is type `char` (a 4-byte Unicode scalar).
+- Array indexing requires *exactly* `usize` (Java lets you index with any `int`), so the `as usize` cast is mandatory, not optional.
+- Rust's `char` does **not** implement `-` (no `Sub`), so `c - 'a'` is a compile error. If you have a `char`, cast both sides first: `c as usize - 'a' as usize`. For ASCII problems, working in bytes is cleaner and faster.
+
+**Gotcha — unsigned underflow.** `b - b'a'` is `u8 - u8`. If `b` is ever *less than* `b'a'` (an uppercase letter, space, or digit), it **underflows**: panics in debug builds, silently wraps in release. Java would hand you a negative `int` and an `ArrayIndexOutOfBoundsException` instead. LC242 guarantees lowercase so it's safe here; over untrusted input, validate the range or use `b.checked_sub(b'a')`. This class of bug is everywhere in C-style byte handling.
+
+**Initializing a fixed zeroed array:**
+
+```rust
+let mut count = [0i32; 26];   // value-repeat syntax: "the value 0, repeated 26 times"
+```
+
+- `N` must be a compile-time constant — it's part of the type, `[i32; 26]`.
+- `[value; N]` requires the element to be `Copy` (it bit-copies the value into each slot). `i32` is `Copy`; `[String::new(); 3]` would *not* compile — non-`Copy` elements need `std::array::from_fn(|_| ...)`.
+- This is stack-allocated — 104 bytes inline, no heap, no `Vec`. That's the O(1)-space part of the optimal solution.
+
+**The algorithm:** one pass, `+1` the slot for each char of `s`, `-1` for each char of `t`, then assert every slot is back to `0`. O(n) time, O(1) space. The length guard is a correct early exit (different lengths can't be anagrams).
+
+**Idiomatic polish — drop the C-style index loops.** Two Rust idioms replace counter loops and remove the manual bounds checks:
+
+- Walk two slices in lockstep with `zip` instead of `for i in 0..n { sb[i], tb[i] }`.
+- Replace the final "are all slots zero?" loop with `.iter().all(...)`, which short-circuits and *is* the return value.
+
+```rust
+pub fn is_anagram(s: String, t: String) -> bool {
+    if s.len() != t.len() { return false; }
+    let mut count = [0i32; 26];
+    for (sc, tc) in s.bytes().zip(t.bytes()) {
+        count[(sc - b'a') as usize] += 1;
+        count[(tc - b'a') as usize] -= 1;
+    }
+    count.iter().all(|&c| c == 0)
+}
+```
+
+`s.bytes().zip(t.bytes())` yields `(u8, u8)` pairs by value and stops at the shorter iterator (safe here since the lengths are already checked equal). `all` returns `false` the instant it sees a non-zero slot.
