@@ -363,3 +363,32 @@ pub fn is_anagram(s: String, t: String) -> bool {
 ```
 
 `s.bytes().zip(t.bytes())` yields `(u8, u8)` pairs by value and stops at the shorter iterator (safe here since the lengths are already checked equal). `all` returns `false` the instant it sees a non-zero slot.
+
+## Checking every element with `iter().all()`
+
+`all` asks one yes/no question of an entire iterator: *does this predicate hold for every item?* It returns a `bool`.
+
+```rust
+count.iter().all(|&c| c == 0)   // true only if every slot is 0
+```
+
+Signature: `fn all<F>(&mut self, f: F) -> bool where F: FnMut(Self::Item) -> bool`.
+
+**How it works**
+
+- It walks the iterator, calling the closure on each item.
+- The instant the closure returns `false`, `all` stops and returns `false` — it never looks at the rest. This **short-circuits**, exactly like the `return false` in a hand-written loop, so it's no slower than the manual version.
+- If it reaches the end without ever seeing `false`, it returns `true`.
+- Edge case: an empty iterator returns `true` — "every element satisfies the predicate" is *vacuously* true when there are no elements.
+
+**The `|&c|` pattern.** `count.iter()` yields `&i32` (shared references), so the closure receives a `&i32`. Writing the parameter as `&c` destructures that reference and binds `c` to the `i32` *by value* (cheap — `i32` is `Copy`). The equivalent without the pattern is `|c| *c == 0`, dereferencing inside. Same result; `|&c|` is the more common idiom.
+
+**Where to use it.** Any time you'd otherwise write a loop that returns `false` (or flips a flag) on the first element that violates a condition: "are all of these valid?", "is everything non-negative?", "did every check pass?". That collapses to `iter().all(predicate)`.
+
+**Its dual, `any`.** The mirror image, for "is there *at least one*?":
+
+- `all(pred)` → `true` if `pred` holds for **every** element (short-circuits on the first `false`).
+- `any(pred)` → `true` if `pred` holds for **at least one** element (short-circuits on the first `true`).
+- On an empty iterator: `all` is `true`, `any` is `false`.
+
+Both work on any `Iterator`, not just slices — anything you can `.iter()`, `.bytes()`, `.chars()`, or otherwise iterate.

@@ -7,10 +7,7 @@ pub fn is_anagram(s: String, t: String) -> bool {
         count[(sc - b'a') as usize] += 1;
         count[(tc - b'a') as usize] -= 1;
     }
-    for i in 0..26 {
-        if count[i] != 0 { return false; }
-    }
-    true
+    count.iter().all(|&c| c == 0)
 }
 
 fn main() {}
