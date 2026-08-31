@@ -1,11 +1,7 @@
-extern crate self as rust_challenges;
+pub mod algorithms;
+pub mod data_structures;
+pub mod exercises;
 
-#[allow(dead_code)]
-#[path = "bin/reverse-string.rs"]
-mod reverse_string;
-#[allow(dead_code)]
-#[path = "bin/gigasecond.rs"]
-mod gigasecond;
-
-pub use reverse_string::reverse;
-pub use gigasecond::after;
+// Preserve the original crate-level API used by the existing exercises.
+pub use algorithms::strings::reverse_string::reverse;
+pub use exercises::gigasecond::after;

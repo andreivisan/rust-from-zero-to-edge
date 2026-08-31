@@ -2,13 +2,15 @@ pub fn repeated_substring_pattern(s: String) -> bool {
     let sb = s.as_bytes();
     let n = sb.len();
     for d in 1..=n / 2 {
-        if n % d != 0 { continue; }
-        if sb.chunks(d).all(|chunk| chunk == &sb[..d]) { return true; }
+        if n % d != 0 {
+            continue;
+        }
+        if sb.chunks(d).all(|chunk| chunk == &sb[..d]) {
+            return true;
+        }
     }
     false
-} 
-
-fn main() {}
+}
 
 #[cfg(test)]
 mod tests {

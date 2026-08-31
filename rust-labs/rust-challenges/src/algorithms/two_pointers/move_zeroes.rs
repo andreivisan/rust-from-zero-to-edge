@@ -8,5 +8,3 @@ pub fn move_zeroes(nums: &mut Vec<i32>) {
     }
     nums[write..].fill(0);
 }
-
-fn main() {}

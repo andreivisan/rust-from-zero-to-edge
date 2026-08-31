@@ -5,17 +5,12 @@ pub fn reverse(input: &str) -> String {
         return input.to_string();
     }
     input.graphemes(true).rev().fold(
-        String::with_capacity(input.len()), 
+        String::with_capacity(input.len()),
         |mut reversed, grapheme| {
             reversed.push_str(grapheme);
             reversed
-        }
+        },
     )
-}
-
-fn main() {
-    let input = std::env::args().nth(1).unwrap_or_default();
-    println!("{}", reverse(&input));
 }
 
 #[cfg(test)]

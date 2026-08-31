@@ -1,11 +1,13 @@
 pub fn str_str(haystack: String, needle: String) -> i32 {
-    if needle.is_empty() { return 0; }        
+    if needle.is_empty() {
+        return 0;
+    }
     let h = haystack.as_bytes();
     let n = needle.as_bytes();
-    h.windows(n.len()).position(|w| w == n).map_or(-1, |i| i as i32)
+    h.windows(n.len())
+        .position(|w| w == n)
+        .map_or(-1, |i| i as i32)
 }
-
-fn main() {}
 
 #[cfg(test)]
 mod tests {

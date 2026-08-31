@@ -5,5 +5,3 @@
 pub fn find_the_difference(s: String, t: String) -> char {
     s.bytes().chain(t.bytes()).fold(0u8, |acc, byte| acc ^ byte) as char
 }
-
-pub fn main() {}
