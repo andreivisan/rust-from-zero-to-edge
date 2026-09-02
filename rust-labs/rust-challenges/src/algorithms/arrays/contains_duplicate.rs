@@ -1,9 +1,15 @@
+use std::collections::HashSet;
+
 /// Returns `true` when at least one value occurs more than once.
 ///
 /// The input must remain unchanged. Aim for expected `O(n)` time and
 /// `O(n)` additional space.
-pub fn contains_duplicate(_nums: &[i32]) -> bool {
-    todo!("implement contains_duplicate")
+pub fn contains_duplicate(nums: &[i32]) -> bool {
+    let mut uniq = HashSet::new();
+    for num in nums {
+        if !uniq.insert(num) { return true; }
+    }
+    false
 }
 
 #[cfg(test)]
