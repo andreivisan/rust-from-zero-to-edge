@@ -4,15 +4,25 @@
 /// The input contract is printable ASCII. Aim for `O(n)` time and `O(1)`
 /// additional space without constructing a normalized `String`.
 pub fn is_valid_palindrome(input: &str) -> bool {
-    if input.len() < 2 { return true; }
+    if input.len() < 2 {
+        return true;
+    }
     let input = input.as_bytes();
     let mut start = 0;
     let mut end = input.len() - 1;
     while start < end {
         //this only woks because the characters are ASCII
-        if !(input[start] as char).is_ascii_alphanumeric() { start += 1; continue; }
-        if !(input[end] as char).is_ascii_alphanumeric() { end -= 1; continue; }
-        if !(input[start] as char).eq_ignore_ascii_case(&(input[end] as char)) { return false; }
+        if !(input[start] as char).is_ascii_alphanumeric() {
+            start += 1;
+            continue;
+        }
+        if !(input[end] as char).is_ascii_alphanumeric() {
+            end -= 1;
+            continue;
+        }
+        if !(input[start] as char).eq_ignore_ascii_case(&(input[end] as char)) {
+            return false;
+        }
         start += 1;
         end -= 1;
     }

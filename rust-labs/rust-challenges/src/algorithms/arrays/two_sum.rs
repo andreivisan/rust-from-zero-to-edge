@@ -7,17 +7,23 @@ use std::collections::HashMap;
  * */
 
 pub fn two_sum(nums: &[i32], target: i32) -> Option<(usize, usize)> {
-     let n = nums.len();
-     if n < 2 { return None; }
-     let mut dmap: HashMap<i32, usize> = HashMap::new();
-     for (i, &num) in nums.iter().enumerate() {
-         let diff = target - num;
-         match dmap.get(&diff) {
-             Some(val) => { return Some((*val, i)); },
-             None => { dmap.insert(num, i); },
-         };
-     }
-     None
+    let n = nums.len();
+    if n < 2 {
+        return None;
+    }
+    let mut dmap: HashMap<i32, usize> = HashMap::new();
+    for (i, &num) in nums.iter().enumerate() {
+        let diff = target - num;
+        match dmap.get(&diff) {
+            Some(val) => {
+                return Some((*val, i));
+            }
+            None => {
+                dmap.insert(num, i);
+            }
+        };
+    }
+    None
 }
 
 #[cfg(test)]

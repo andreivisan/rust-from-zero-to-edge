@@ -7,7 +7,9 @@ use std::collections::HashSet;
 pub fn contains_duplicate(nums: &[i32]) -> bool {
     let mut uniq = HashSet::new();
     for num in nums {
-        if !uniq.insert(num) { return true; }
+        if !uniq.insert(num) {
+            return true;
+        }
     }
     false
 }
