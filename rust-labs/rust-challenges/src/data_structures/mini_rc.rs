@@ -6,27 +6,22 @@ struct RcInner<T> {
 }
 
 struct MiniRc<T> {
-    ptr: *mut RcInner<T>
+    ptr: *mut RcInner<T>,
 }
 
 impl<T> MiniRc<T> {
     pub fn new(value: T) -> Self {
         let rc_inner = RcInner {
             strong: Cell::new(1),
-            value
+            value,
         };
         let inner_struct = Box::new(rc_inner);
         let ptr = Box::into_raw(inner_struct);
-        MiniRc {
-            ptr
-        }
+        MiniRc { ptr }
     }
 
     pub fn strong_count(&self) -> usize {
-        unsafe {
-            Cell::get(&(*self.ptr).strong)
-    
-        }
+        unsafe { Cell::get(&(*self.ptr).strong) }
     }
 }
 
@@ -36,9 +31,7 @@ impl<T> Clone for MiniRc<T> {
         counter = counter.checked_add(1).expect("Overflow");
         unsafe {
             (*self.ptr).strong.set(counter);
-            MiniRc {
-                ptr: self.ptr
-            } 
+            MiniRc { ptr: self.ptr }
         }
     }
 }
@@ -47,9 +40,7 @@ impl<T> Deref for MiniRc<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        unsafe {
-            &(*self.ptr).value
-        }
+        unsafe { &(*self.ptr).value }
     }
 }
 
@@ -59,7 +50,9 @@ impl<T> Drop for MiniRc<T> {
         counter = counter.checked_sub(1).expect("Counter can't be negative");
         unsafe {
             (*self.ptr).strong.set(counter);
-            if counter > 0 { return; }
+            if counter > 0 {
+                return;
+            }
             let bx = Box::from_raw(self.ptr);
             drop(bx);
         }
