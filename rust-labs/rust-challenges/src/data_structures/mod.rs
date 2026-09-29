@@ -5,6 +5,7 @@ pub mod linked_list;
 pub mod mini_box;
 pub mod mini_mutex;
 pub mod mini_rc;
+pub mod mini_stream;
 pub mod trie;
 pub mod trpl_tree;
 pub mod union_find;
