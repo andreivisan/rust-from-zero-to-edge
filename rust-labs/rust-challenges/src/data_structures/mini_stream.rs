@@ -1,11 +1,14 @@
 use std::{
     collections::VecDeque,
-    sync::{Arc, Mutex},
+    future::Future,
+    pin::Pin,
+    sync::{Arc, Mutex}, task::{Context, Poll, Waker},
 };
 
 struct Shared<T> {
     queue: VecDeque<T>,
     closed: bool,
+    waker: Option<Waker>,
 }
 
 struct MiniSender<T> {
@@ -16,10 +19,15 @@ struct MiniStream<T> {
     shared: Arc<Mutex<Shared<T>>>,
 }
 
+struct Next<'a, T> {
+    stream: &'a mut MiniStream<T>,
+}
+
 impl<T> MiniSender<T> {
     fn send(&self, value: T) {
         let mut shared = self.shared.lock().expect("stream mutex poisoned");
         shared.queue.push_back(value);
+        if let waker = Some(shared.waker.take()) { waker.wake(); }
     }
 }
 
@@ -30,14 +38,43 @@ impl<T> Drop for MiniSender<T> {
     }
 }
 
+impl<T> MiniStream<T> {
+    fn next(&mut self) -> Next<'_, T> {
+        Next { stream: self }
+    }
+}
+
+impl<'a, T> Future for Next<'a, T> {
+    type Output = Option<T>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut next = self.stream.shared.lock().expect("stream mutex poisoned");
+        match next.queue.pop_front() {
+            Some(value) => { return Poll::Ready(Some(value)); },
+            None => {
+                if next.closed {
+                    return Poll::Ready(None);
+                }
+                next.waker = Some(cx.waker().clone());
+                return Poll::Pending;
+            }
+        }
+    }
+}
+
 fn mini_stream<T>() -> (MiniSender<T>, MiniStream<T>) {
     let shared_queue = Arc::new(Mutex::new(Shared {
         queue: VecDeque::new(),
         closed: false,
+        waker: None,
     }));
     let shared_queue_cloned = Arc::clone(&shared_queue);
-    let mini_sender = MiniSender { shared: shared_queue };
-    let mini_stream = MiniStream { shared: shared_queue_cloned };
+    let mini_sender = MiniSender {
+        shared: shared_queue,
+    };
+    let mini_stream = MiniStream {
+        shared: shared_queue_cloned,
+    };
     (mini_sender, mini_stream)
 }
 
