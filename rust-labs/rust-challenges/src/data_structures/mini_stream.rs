@@ -27,7 +27,9 @@ impl<T> MiniSender<T> {
     fn send(&self, value: T) {
         let mut shared = self.shared.lock().expect("stream mutex poisoned");
         shared.queue.push_back(value);
-        if let waker = Some(shared.waker.take()) { waker.wake(); }
+        if let Some(waker) = shared.waker.take() {
+            waker.wake();
+        }
     }
 }
 
